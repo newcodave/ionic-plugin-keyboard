@@ -2,6 +2,48 @@
 // #import "UIWebViewExtension.h"
 #import <Cordova/CDVAvailability.h>
 
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
+#import <objc/runtime.h>
+
+static BOOL _hideFormAccessoryBar = NO;
+static IMP UIOriginalImp = NULL;
+static IMP WKOriginalImp = NULL;
+
+@interface UIView (HideFormAccessoryBar)
+- (UIView *)inputAccessoryView;
+@end
+
+void HideFormAccessoryBar(BOOL ahideFormAccessoryBar) {
+    if (ahideFormAccessoryBar == _hideFormAccessoryBar) {
+        return;
+    }
+    
+    NSString* UIClassString = [@[@"UI", @"Web", @"Browser", @"View"] componentsJoinedByString:@""];
+    NSString* WKClassString = [@[@"WK", @"Content", @"View"] componentsJoinedByString:@""];
+    
+    Method UIMethod = class_getInstanceMethod(NSClassFromString(UIClassString), @selector(inputAccessoryView));
+    Method WKMethod = class_getInstanceMethod(NSClassFromString(WKClassString), @selector(inputAccessoryView));
+    
+    if (ahideFormAccessoryBar) {
+        UIOriginalImp = method_getImplementation(UIMethod);
+        WKOriginalImp = method_getImplementation(WKMethod);
+        
+        IMP newImp = imp_implementationWithBlock(^(id _s) {
+            return nil;
+        });
+        
+        method_setImplementation(UIMethod, newImp);
+        method_setImplementation(WKMethod, newImp);
+    } else {
+        method_setImplementation(UIMethod, UIOriginalImp);
+        method_setImplementation(WKMethod, WKOriginalImp);
+    }
+    
+    _hideFormAccessoryBar = ahideFormAccessoryBar;
+}
+
+
 @implementation IonicKeyboard
 
 // @synthesize hideKeyboardAccessoryBar = _hideKeyboardAccessoryBar;
@@ -41,6 +83,9 @@
                                    //deprecated
                                    [weakSelf.commandDelegate evalJs:@"cordova.fireWindowEvent('native.hidekeyboard'); "];
                                }];
+
+
+  HideFormAccessoryBar(YES);
 }
 - (BOOL)disableScroll {
     return _disableScroll;
